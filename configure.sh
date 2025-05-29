@@ -29,7 +29,7 @@ echo $2 | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39
 sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
 sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
 
-brew install cloudflared --cask
+brew install cloudflared
 
 # https://stackoverflow.com/questions/16242025/term-environment-variable-not-set#16252511
 set | grep TERM
