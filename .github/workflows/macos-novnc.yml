@@ -6,44 +6,33 @@ jobs:
     runs-on: macos-14
 
     steps:
-    - name: Setup noVNC properly
+    - name: Install Node.js alternative
       run: |
+        # 安装 Node.js
+        brew install node
+        
+        # 安装 node-websockify
+        npm install -g node-websockify
+        
         # 下载 noVNC
-        wget https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.tar.gz
-        tar -xzf v1.4.0.tar.gz
-        mv noVNC-1.4.0 ~/noVNC
+        git clone https://github.com/novnc/noVNC.git ~/noVNC
         
-        # 下载 websockify 并正确安装
-        wget https://github.com/novnc/websockify/archive/refs/tags/v0.11.0.tar.gz
-        tar -xzf v0.11.0.tar.gz
-        cd websockify-0.11.0
-        # 安装到用户目录
-        python3 -m pip install --user .
-        cd ..
-        
-        echo "安装完成，websockify 已安装到 Python 包目录"
+        echo "Node.js 方案安装完成"
 
     - name: Enable VNC and start proxy
       run: |
-        # 启用 macOS VNC
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
           -clientopts -setvnclegacy -vnclegacy yes \
           -clientopts -setvncpw -vncpw asdf1234 \
           -restart -agent -privs -all
         
-        echo "等待VNC服务启动..."
         sleep 15
         
-        # 启动 websockify - 使用绝对路径
-        /Users/runner/.local/bin/websockify --web ~/noVNC 6080 localhost:5900 &
+        # 使用 node-websockify
+        node-websockify --web ~/noVNC 6080 localhost:5900 &
         
-        sleep 5
-        echo "检查进程:"
-        ps aux | grep websockify | grep -v grep || echo "websockify 未运行"
-        
-        echo "检查端口:"
-        lsof -i :6080 || echo "端口6080未监听"
+        echo "代理服务已启动"
 
     - name: Start tunnel
       run: |
@@ -53,14 +42,9 @@ jobs:
         
         ./cloudflared tunnel --url http://localhost:6080 2>&1 | tee tunnel.log &
         sleep 45
-        
-        echo "隧道信息:"
-        tail -20 tunnel.log
 
-    - name: Display info
+    - name: Run
       run: |
-        echo "✅ macOS noVNC Desktop"
-        echo "🔑 密码: asdf1234"
-        echo ""
-        echo "本地测试: curl http://localhost:6080 || echo '服务未响应'"
+        echo "macOS noVNC (Node.js 版)"
+        echo "密码: asdf1234"
         timeout 6h tail -f tunnel.log
