@@ -58,111 +58,111 @@ jobs:
         
         # 创建简单的 Node.js 代理服务器
         cat > server.js << 'EOF'
-const http = require('http');
-const WebSocket = require('ws');
-const fs = require('fs');
-const path = require('path');
-
-const VNC_HOST = 'localhost';
-const VNC_PORT = 5900;
-const HTTP_PORT = 6080;
-const WEB_ROOT = path.join(__dirname, 'noVNC');
-
-// 创建 HTTP 服务器
-const server = http.createServer((req, res) => {
-  let filePath = path.join(WEB_ROOT, req.url === '/' ? 'vnc.html' : req.url);
-  
-  // 默认页面
-  if (req.url === '/') {
-    filePath = path.join(WEB_ROOT, 'vnc.html');
-  }
-  
-  // 检查文件是否存在
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      if (err.code === 'ENOENT') {
-        // 文件不存在，返回 404
-        res.writeHead(404);
-        res.end('File not found');
-      } else {
-        // 服务器错误
-        res.writeHead(500);
-        res.end('Server error');
-      }
-    } else {
-      // 成功返回文件
-      const ext = path.extname(filePath);
-      let contentType = 'text/html';
-      
-      if (ext === '.js') contentType = 'text/javascript';
-      else if (ext === '.css') contentType = 'text/css';
-      else if (ext === '.png') contentType = 'image/png';
-      else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-      
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
-    }
-  });
-});
-
-// WebSocket 代理
-const wss = new WebSocket.Server({ noServer: true });
-
-wss.on('connection', (clientWs) => {
-  console.log('noVNC client connected');
-  
-  // 连接到 VNC 服务器
-  const vncWs = new WebSocket(`ws://${VNC_HOST}:${VNC_PORT}`);
-  
-  clientWs.on('message', (data) => {
-    if (vncWs.readyState === WebSocket.OPEN) {
-      vncWs.send(data);
-    }
-  });
-  
-  vncWs.on('message', (data) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(data);
-    }
-  });
-  
-  vncWs.on('close', () => {
-    console.log('VNC connection closed');
-    clientWs.close();
-  });
-  
-  clientWs.on('close', () => {
-    console.log('noVNC client disconnected');
-    vncWs.close();
-  });
-  
-  vncWs.on('error', (err) => {
-    console.error('VNC WebSocket error:', err.message);
-    clientWs.close();
-  });
-});
-
-// 处理 WebSocket 升级
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
-});
-
-// 启动服务器
-server.listen(HTTP_PORT, () => {
-  console.log(`noVNC server running on http://localhost:${HTTP_PORT}`);
-  console.log(`Web root: ${WEB_ROOT}`);
-  console.log(`Proxying to VNC at ${VNC_HOST}:${VNC_PORT}`);
-});
-
-// 优雅关闭
-process.on('SIGINT', () => {
-  console.log('Shutting down server...');
-  server.close();
-  process.exit(0);
-});
-EOF
+        const http = require('http');
+        const WebSocket = require('ws');
+        const fs = require('fs');
+        const path = require('path');
+        
+        const VNC_HOST = 'localhost';
+        const VNC_PORT = 5900;
+        const HTTP_PORT = 6080;
+        const WEB_ROOT = path.join(__dirname, 'noVNC');
+        
+        // 创建 HTTP 服务器
+        const server = http.createServer((req, res) => {
+          let filePath = path.join(WEB_ROOT, req.url === '/' ? 'vnc.html' : req.url);
+          
+          // 默认页面
+          if (req.url === '/') {
+            filePath = path.join(WEB_ROOT, 'vnc.html');
+          }
+          
+          // 检查文件是否存在
+          fs.readFile(filePath, (err, content) => {
+            if (err) {
+              if (err.code === 'ENOENT') {
+                // 文件不存在，返回 404
+                res.writeHead(404);
+                res.end('File not found');
+              } else {
+                // 服务器错误
+                res.writeHead(500);
+                res.end('Server error');
+              }
+            } else {
+              // 成功返回文件
+              const ext = path.extname(filePath);
+              let contentType = 'text/html';
+              
+              if (ext === '.js') contentType = 'text/javascript';
+              else if (ext === '.css') contentType = 'text/css';
+              else if (ext === '.png') contentType = 'image/png';
+              else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+              
+              res.writeHead(200, { 'Content-Type': contentType });
+              res.end(content);
+            }
+          });
+        });
+        
+        // WebSocket 代理
+        const wss = new WebSocket.Server({ noServer: true });
+        
+        wss.on('connection', (clientWs) => {
+          console.log('noVNC client connected');
+          
+          // 连接到 VNC 服务器
+          const vncWs = new WebSocket(`ws://${VNC_HOST}:${VNC_PORT}`);
+          
+          clientWs.on('message', (data) => {
+            if (vncWs.readyState === WebSocket.OPEN) {
+              vncWs.send(data);
+            }
+          });
+          
+          vncWs.on('message', (data) => {
+            if (clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(data);
+            }
+          });
+          
+          vncWs.on('close', () => {
+            console.log('VNC connection closed');
+            clientWs.close();
+          });
+          
+          clientWs.on('close', () => {
+            console.log('noVNC client disconnected');
+            vncWs.close();
+          });
+          
+          vncWs.on('error', (err) => {
+            console.error('VNC WebSocket error:', err.message);
+            clientWs.close();
+          });
+        });
+        
+        // 处理 WebSocket 升级
+        server.on('upgrade', (request, socket, head) => {
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+          });
+        });
+        
+        // 启动服务器
+        server.listen(HTTP_PORT, () => {
+          console.log(`noVNC server running on http://localhost:${HTTP_PORT}`);
+          console.log(`Web root: ${WEB_ROOT}`);
+          console.log(`Proxying to VNC at ${VNC_HOST}:${VNC_PORT}`);
+        });
+        
+        // 优雅关闭
+        process.on('SIGINT', () => {
+          console.log('Shutting down server...');
+          server.close();
+          process.exit(0);
+        });
+        EOF
         
         # 确保有 Node.js
         brew install node || true
