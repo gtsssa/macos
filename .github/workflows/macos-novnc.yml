@@ -1,50 +1,49 @@
-name: macOS noVNC via Docker
+name: macOS Real VNC
 on: workflow_dispatch
 
 jobs:
   deploy:
     runs-on: macos-14
-    timeout-minutes: 360 # 运行6小时
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker and run noVNC container
+    - name: Install noVNC and enable screen sharing
       run: |
-        # 拉取一个集成了桌面环境和noVNC的Docker镜像（示例为Ubuntu XFCE）
-        # 注意：GitHub Actions的macOS runner是ARM架构，需要确认镜像支持
-        docker run -d \
-          --name mac-desktop \
-          -p 6080:80 \
-          -p 5900:5900 \
-          -e VNC_PASSWORD=asdf1234 \
-          -e RESOLUTION=1280x720 \
-          --shm-size=1g \
-          dorowu/ubuntu-desktop-lxde-vnc:arm64 # 注意寻找支持ARM64的标签
-        sleep 15
-        echo "Docker容器已启动，等待服务就绪..."
+        # 安装 noVNC 依赖
+        brew install websockify
+        
+        # 下载 noVNC
+        git clone https://github.com/novnc/noVNC.git ~/noVNC
+        
+        # 启用屏幕共享（VNC）
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -clientopts -setvnclegacy -vnclegacy yes \
+          -clientopts -setvncpw -vncpw asdf1234 \
+          -restart -agent -privs -all
+        
+        echo "VNC服务已启用，密码: asdf1234"
 
-    - name: Download and start Cloudflared tunnel
+    - name: Start noVNC proxy
       run: |
-        # 下载macOS版的cloudflared
+        # 启动 websockify 代理
+        websockify --web ~/noVNC 6080 localhost:5900 &
+        sleep 5
+        echo "noVNC代理已启动: 6080端口"
+
+    - name: Setup Cloudflared tunnel
+      run: |
         curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
         tar -xzf cloudflared.tgz
         chmod +x cloudflared
-        # 启动隧道，指向容器内部的noVNC服务（端口6080）
+        
         ./cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
-        sleep 30
-        echo "隧道启动日志："
-        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log | head -1 || echo "URL生成中，请查看tunnel.log"
+        sleep 40
+        
+        echo "访问URL:"
+        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log | head -1 || echo "请查看 tunnel.log"
 
-    - name: Keep alive and display info
+    - name: Run
       run: |
-        echo "========================================"
-        echo "     macOS noVNC 桌面环境已启动"
-        echo "========================================"
-        echo "🔑 VNC密码：asdf1234"
-        echo "🌐 请查看上一步输出的Cloudflare隧道URL"
-        echo "📁 本地直接访问（仅调试）：http://localhost:6080"
-        echo "========================================"
-        # 保持工作流运行
-        timeout 355m tail -f tunnel.log
+        echo "✅ macOS noVNC 桌面"
+        echo "🔑 VNC密码: asdf1234"
+        timeout 6h tail -f tunnel.log
