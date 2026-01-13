@@ -1,53 +1,50 @@
-name: macOS VNC via Docker
+name: macOS noVNC via Docker
 on: workflow_dispatch
 
 jobs:
   deploy:
     runs-on: macos-14
-    
-    steps:
-    - name: Install Docker and run container
-      run: |
-        # 安装 Docker Desktop
-        brew install --cask docker
-        
-        # 启动 Docker
-        open -a Docker
-        
-        # 等待 Docker 启动
-        sleep 30
-        
-        # 运行包含 VNC 的容器
-        docker run -d \
-          --name macos-vnc \
-          -p 5900:5900 \
-          -p 6080:80 \
-          -e VNC_PASSWORD=asdf1234 \
-          consol/ubuntu-xfce-vnc
-        
-        echo "容器已启动"
-        docker ps
+    timeout-minutes: 360 # 运行6小时
 
-    - name: Setup Cloudflared tunnel
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker and run noVNC container
       run: |
-        # 下载 cloudflared
-        curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-amd64.tgz -o cloudflared.tgz
+        # 拉取一个集成了桌面环境和noVNC的Docker镜像（示例为Ubuntu XFCE）
+        # 注意：GitHub Actions的macOS runner是ARM架构，需要确认镜像支持
+        docker run -d \
+          --name mac-desktop \
+          -p 6080:80 \
+          -p 5900:5900 \
+          -e VNC_PASSWORD=asdf1234 \
+          -e RESOLUTION=1280x720 \
+          --shm-size=1g \
+          dorowu/ubuntu-desktop-lxde-vnc:arm64 # 注意寻找支持ARM64的标签
+        sleep 15
+        echo "Docker容器已启动，等待服务就绪..."
+
+    - name: Download and start Cloudflared tunnel
+      run: |
+        # 下载macOS版的cloudflared
+        curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
         tar -xzf cloudflared.tgz
         chmod +x cloudflared
-        
-        # 启动隧道
+        # 启动隧道，指向容器内部的noVNC服务（端口6080）
         ./cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
-        
         sleep 30
-        
-        echo "隧道信息:"
-        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log || echo "查看完整日志: tail -f tunnel.log"
+        echo "隧道启动日志："
+        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log | head -1 || echo "URL生成中，请查看tunnel.log"
 
-    - name: Keep running
+    - name: Keep alive and display info
       run: |
-        echo "密码: asdf1234"
-        echo "使用 VNC 客户端连接: localhost:5900"
-        echo "或通过隧道访问网页版"
-        
-        # 保持运行
+        echo "========================================"
+        echo "     macOS noVNC 桌面环境已启动"
+        echo "========================================"
+        echo "🔑 VNC密码：asdf1234"
+        echo "🌐 请查看上一步输出的Cloudflare隧道URL"
+        echo "📁 本地直接访问（仅调试）：http://localhost:6080"
+        echo "========================================"
+        # 保持工作流运行
         timeout 355m tail -f tunnel.log
