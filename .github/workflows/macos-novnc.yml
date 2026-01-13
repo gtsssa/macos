@@ -1,4 +1,4 @@
-name: macOS Real VNC
+name: macOS Simple noVNC
 on: workflow_dispatch
 
 jobs:
@@ -6,44 +6,48 @@ jobs:
     runs-on: macos-14
 
     steps:
-    - name: Install noVNC and enable screen sharing
+    - name: Download and setup noVNC
       run: |
-        # 安装 noVNC 依赖
-        brew install websockify
+        # 下载预编译的 noVNC
+        wget https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.tar.gz
+        tar -xzf v1.4.0.tar.gz
+        mv noVNC-1.4.0 ~/noVNC
         
-        # 下载 noVNC
-        git clone https://github.com/novnc/noVNC.git ~/noVNC
+        # 下载 websockify
+        wget https://github.com/novnc/websockify/archive/refs/tags/v0.11.0.tar.gz
+        tar -xzf v0.11.0.tar.gz
+        mv websockify-0.11.0 ~/websockify
         
-        # 启用屏幕共享（VNC）
+        echo "文件下载完成"
+
+    - name: Enable VNC and start proxy
+      run: |
+        # 启用 macOS VNC
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
           -clientopts -setvnclegacy -vnclegacy yes \
           -clientopts -setvncpw -vncpw asdf1234 \
           -restart -agent -privs -all
         
-        echo "VNC服务已启用，密码: asdf1234"
+        sleep 10
+        
+        # 直接使用 python 运行 websockify
+        cd ~/websockify
+        python3 websockify/websocketproxy.py --web ~/noVNC 6080 localhost:5900 &
+        
+        echo "服务启动完成"
 
-    - name: Start noVNC proxy
-      run: |
-        # 启动 websockify 代理
-        websockify --web ~/noVNC 6080 localhost:5900 &
-        sleep 5
-        echo "noVNC代理已启动: 6080端口"
-
-    - name: Setup Cloudflared tunnel
+    - name: Start tunnel
       run: |
         curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
         tar -xzf cloudflared.tgz
         chmod +x cloudflared
         
-        ./cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
-        sleep 40
-        
-        echo "访问URL:"
-        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log | head -1 || echo "请查看 tunnel.log"
+        ./cloudflared tunnel --url http://localhost:6080 2>&1 | tee tunnel.log &
+        sleep 45
 
-    - name: Run
+    - name: Display info
       run: |
-        echo "✅ macOS noVNC 桌面"
-        echo "🔑 VNC密码: asdf1234"
+        echo "✅ macOS noVNC Desktop"
+        echo "🔑 密码: asdf1234"
         timeout 6h tail -f tunnel.log
