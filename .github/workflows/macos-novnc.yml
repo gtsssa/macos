@@ -1,4 +1,4 @@
-name: macOS noVNC Docker
+name: macOS noVNC Colima
 on: workflow_dispatch
 
 jobs:
@@ -6,30 +6,28 @@ jobs:
     runs-on: macos-14
 
     steps:
-    - name: Install Docker and run container
+    - name: Install Colima and run container
       run: |
-        # 安装 Docker
+        # 安装 colima（macOS 上的轻量级 Docker）
+        brew install colima
         brew install docker
-        brew install --cask docker
         
-        # 启动 Docker 服务
-        sudo launchctl load /Library/LaunchDaemons/com.docker.vmnetd.plist
-        open -a Docker --background
+        # 启动 colima
+        colima start --cpu 2 --memory 4 --disk 20
         
-        echo "等待 Docker 启动..."
+        echo "等待 colima 启动..."
         sleep 30
         
-        # 运行 noVNC 容器（使用支持 macOS 的镜像）
-        # 注意：macOS 是 ARM 架构，需要 ARM 镜像
+        # 运行 noVNC 容器
         docker run -d \
-          --name novnc \
-          -p 6080:8080 \
+          --name novnc-desktop \
+          -p 6080:80 \
           -p 5900:5900 \
-          -e VNC_PW=asdf1234 \
-          -e VNC_RESOLUTION=1024x768 \
-          lscr.io/linuxserver/webtop:ubuntu-xfce
+          -e VNC_PASSWORD=asdf1234 \
+          -e RESOLUTION=1280x720 \
+          dorowu/ubuntu-desktop-lxde-vnc
         
-        echo "容器已启动"
+        echo "容器运行中..."
         docker ps
 
     - name: Setup tunnel
@@ -39,19 +37,12 @@ jobs:
         chmod +x cloudflared
         
         ./cloudflared tunnel --url http://localhost:6080 2>&1 | tee tunnel.log &
-        sleep 60
+        sleep 45
         
-        echo "等待隧道建立..."
+        grep 'trycloudflare.com' tunnel.log && echo "URL已生成"
 
-    - name: Display info
+    - name: Run
       run: |
-        echo "========================================"
-        echo "     macOS noVNC via Docker"
-        echo "========================================"
-        echo ""
+        echo "✅ Docker noVNC 桌面"
         echo "🔑 密码: asdf1234"
-        echo "🌐 本地访问: http://localhost:6080"
-        echo ""
-        echo "查看 tunnel.log 获取 Cloudflare URL"
-        echo ""
         timeout 6h tail -f tunnel.log
