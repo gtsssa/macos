@@ -1,4 +1,4 @@
-name: macOS noVNC
+name: macOS noVNC Docker
 on: workflow_dispatch
 
 jobs:
@@ -6,45 +6,52 @@ jobs:
     runs-on: macos-14
 
     steps:
-    - name: Install Node.js alternative
+    - name: Install Docker and run container
       run: |
-        # 安装 Node.js
-        brew install node
+        # 安装 Docker
+        brew install docker
+        brew install --cask docker
         
-        # 安装 node-websockify
-        npm install -g node-websockify
+        # 启动 Docker 服务
+        sudo launchctl load /Library/LaunchDaemons/com.docker.vmnetd.plist
+        open -a Docker --background
         
-        # 下载 noVNC
-        git clone https://github.com/novnc/noVNC.git ~/noVNC
+        echo "等待 Docker 启动..."
+        sleep 30
         
-        echo "Node.js 方案安装完成"
+        # 运行 noVNC 容器（使用支持 macOS 的镜像）
+        # 注意：macOS 是 ARM 架构，需要 ARM 镜像
+        docker run -d \
+          --name novnc \
+          -p 6080:8080 \
+          -p 5900:5900 \
+          -e VNC_PW=asdf1234 \
+          -e VNC_RESOLUTION=1024x768 \
+          lscr.io/linuxserver/webtop:ubuntu-xfce
+        
+        echo "容器已启动"
+        docker ps
 
-    - name: Enable VNC and start proxy
-      run: |
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-          -activate -configure -access -on \
-          -clientopts -setvnclegacy -vnclegacy yes \
-          -clientopts -setvncpw -vncpw asdf1234 \
-          -restart -agent -privs -all
-        
-        sleep 15
-        
-        # 使用 node-websockify
-        node-websockify --web ~/noVNC 6080 localhost:5900 &
-        
-        echo "代理服务已启动"
-
-    - name: Start tunnel
+    - name: Setup tunnel
       run: |
         curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
         tar -xzf cloudflared.tgz
         chmod +x cloudflared
         
         ./cloudflared tunnel --url http://localhost:6080 2>&1 | tee tunnel.log &
-        sleep 45
+        sleep 60
+        
+        echo "等待隧道建立..."
 
-    - name: Run
+    - name: Display info
       run: |
-        echo "macOS noVNC (Node.js 版)"
-        echo "密码: asdf1234"
+        echo "========================================"
+        echo "     macOS noVNC via Docker"
+        echo "========================================"
+        echo ""
+        echo "🔑 密码: asdf1234"
+        echo "🌐 本地访问: http://localhost:6080"
+        echo ""
+        echo "查看 tunnel.log 获取 Cloudflare URL"
+        echo ""
         timeout 6h tail -f tunnel.log
