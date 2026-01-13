@@ -29,15 +29,15 @@ echo $2 | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39
 sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
 sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
 
-brew install cloudflared
-# brew install ngrok --cask
+# brew install cloudflared
+brew install ngrok --cask
 
 #configure ngrok and start it
-# ngrok authtoken $3
-# ngrok tcp 5900 --region=ap &
+ngrok authtoken $3
+ngrok tcp 5900 --region=ap &
 
 # https://stackoverflow.com/questions/16242025/term-environment-variable-not-set#16252511
-set | grep TERM
-export TERM=xterm
+# set | grep TERM
+# export TERM=xterm
 
-cloudflared tunnel --url tcp://localhost:5900
+# cloudflared tunnel --url tcp://localhost:5900
