@@ -1,0 +1,53 @@
+name: macOS VNC via Docker
+on: workflow_dispatch
+
+jobs:
+  deploy:
+    runs-on: macos-14
+    
+    steps:
+    - name: Install Docker and run container
+      run: |
+        # 安装 Docker Desktop
+        brew install --cask docker
+        
+        # 启动 Docker
+        open -a Docker
+        
+        # 等待 Docker 启动
+        sleep 30
+        
+        # 运行包含 VNC 的容器
+        docker run -d \
+          --name macos-vnc \
+          -p 5900:5900 \
+          -p 6080:80 \
+          -e VNC_PASSWORD=asdf1234 \
+          consol/ubuntu-xfce-vnc
+        
+        echo "容器已启动"
+        docker ps
+
+    - name: Setup Cloudflared tunnel
+      run: |
+        # 下载 cloudflared
+        curl -L https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-darwin-amd64.tgz -o cloudflared.tgz
+        tar -xzf cloudflared.tgz
+        chmod +x cloudflared
+        
+        # 启动隧道
+        ./cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
+        
+        sleep 30
+        
+        echo "隧道信息:"
+        grep -o 'https://[^ ]*\.trycloudflare\.com' tunnel.log || echo "查看完整日志: tail -f tunnel.log"
+
+    - name: Keep running
+      run: |
+        echo "密码: asdf1234"
+        echo "使用 VNC 客户端连接: localhost:5900"
+        echo "或通过隧道访问网页版"
+        
+        # 保持运行
+        timeout 355m tail -f tunnel.log
